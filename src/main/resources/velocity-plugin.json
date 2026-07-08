@@ -1,0 +1,18 @@
+{
+  "id": "veloreconnect",
+  "name": "VeloReconnect",
+  "version": "${version}",
+  "description": "Autoreconnects players when a backend server restarts.",
+  "authors": ["ari"],
+  "main": "eu.mikart.veloreconnect.VeloReconnectPlugin",
+  "dependencies": [
+    {
+      "id": "limboapi",
+      "optional": false
+    },
+    {
+      "id": "miniplaceholders",
+      "optional": true
+    }
+  ]
+}
