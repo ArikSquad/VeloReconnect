@@ -1,6 +1,8 @@
 plugins {
     java
     id("com.gradleup.shadow") version "8.3.6"
+    id("xyz.jpenilla.run-velocity") version "3.0.2"
+    id("xyz.jpenilla.run-paper") version "3.0.2"
 }
 
 group = "dev.ari"
@@ -13,6 +15,7 @@ java {
 }
 
 dependencies {
+    annotationProcessor("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
     compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
 
     implementation("de.exlll:configlib-yaml:4.8.1")
@@ -24,6 +27,18 @@ tasks {
     compileJava {
         options.encoding = "UTF-8"
         options.release.set(25)
+    }
+
+    runVelocity {
+        velocityVersion("3.5.0-SNAPSHOT")
+
+        downloadPlugins {
+            modrinth("limboapi", "839773c")
+        }
+    }
+
+    runServer {
+        minecraftVersion("26.2")
     }
 
     processResources {
