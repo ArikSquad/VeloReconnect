@@ -3,36 +3,28 @@ package eu.mikart.veloreconnect.config;
 import de.exlll.configlib.Comment;
 import de.exlll.configlib.Configuration;
 
-import java.util.List;
-
 @Configuration
 public final class ReconnectConfig {
-    @Comment("Backend servers where autoreconnect is enabled. Use Velocity server names.")
-    public List<String> monitoredServers = List.of("survival");
+    @Comment("Maximum time to keep trying before the player is disconnected, in milliseconds.")
+    public long maxTimeoutMillis = 60000L;
 
-    @Comment("Maximum reconnect attempts before the player is disconnected.")
-    public int maxAttempts = 60;
-
-    @Comment("Delay between reconnect attempts in milliseconds.")
-    public long retryDelayMillis = 1000L;
-
-    @Comment("Delay before first reconnect attempt in milliseconds.")
-    public long firstRetryDelayMillis = 1500L;
+    @Comment("Time between backend availability checks, in milliseconds.")
+    public long checkIntervalMillis = 1000L;
 
     @Comment("Title fade-in time in milliseconds.")
-    public long titleFadeInMillis = 250L;
+    public long titleFadeInMillis = 0L;
 
     @Comment("Title stay time in milliseconds.")
     public long titleStayMillis = 1200L;
 
     @Comment("Title fade-out time in milliseconds.")
-    public long titleFadeOutMillis = 250L;
+    public long titleFadeOutMillis = 0L;
 
-    @Comment("Show a gold restarting title as soon as the backend goes down.")
-    public boolean showRestartingTitle = true;
+    @Comment("Show titles")
+    public boolean showTitle = true;
 
-    @Comment("Show a green connecting title while the proxy retries the original backend.")
-    public boolean showConnectingTitle = true;
+    @Comment("Queue reconnects when the proxy is busy.")
+    public QueueConfig queue = new QueueConfig();
 
     @Comment("Proxy-side limbo visuals.")
     public VisualConfig visual = new VisualConfig();
@@ -44,6 +36,21 @@ public final class ReconnectConfig {
     public static final class VisualConfig {
         @Comment("Gamemode used inside proxy-side limbo: survival, creative, adventure, or spectator.")
         public String gamemode = "adventure";
+    }
+
+    @Configuration
+    public static final class QueueConfig {
+        @Comment("Enable reconnect queueing when the proxy has enough online players.")
+        public boolean enabled = false;
+
+        @Comment("Start queueing reconnects when online player count is at or above this value.")
+        public int onlineThreshold = 10;
+
+        @Comment("Maximum players allowed to reconnect during one batch window.")
+        public int batchSize = 2;
+
+        @Comment("Time between reconnect batch windows, in milliseconds.")
+        public long batchIntervalMillis = 2000L;
     }
 
     @Configuration
@@ -69,7 +76,7 @@ public final class ReconnectConfig {
         @Comment("LimboAPI read timeout in seconds.")
         public int readTimeoutSeconds = 120;
 
-        @Comment("Virtual limbo view distance. Use 0 to avoid sending replacement chunks.")
+        @Comment("Virtual limbo view distance. Use 0 to keep the client's previous chunks visible.")
         public int viewDistance = 0;
 
         @Comment("Virtual limbo simulation distance. Use 0 to avoid visible world updates.")

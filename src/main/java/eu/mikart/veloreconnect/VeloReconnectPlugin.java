@@ -22,6 +22,7 @@ import net.elytrium.limboapi.api.player.GameMode;
 import net.elytrium.limboapi.api.event.LoginLimboRegisterEvent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
 import net.kyori.adventure.translation.GlobalTranslator;
 import org.slf4j.Logger;
@@ -34,6 +35,8 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Plugin(
     id = "veloreconnect",
@@ -54,6 +57,8 @@ public final class VeloReconnectPlugin {
     private ReconnectConfig config;
     public static MiniPlaceholderBridge placeholders;
     private Limbo limbo;
+    private final AtomicLong reconnectBatchStartedAtMillis = new AtomicLong(System.currentTimeMillis());
+    private final AtomicInteger reconnectBatchUsed = new AtomicInteger();
 
     private final List<Locale> supportedLocales = List.of(
         Locale.US,
@@ -72,7 +77,7 @@ public final class VeloReconnectPlugin {
     @Inject
     public VeloReconnectPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDirectory) {
         placeholders = new MiniPlaceholderBridge(proxy);
-        MM = MiniMessage.builder().tags(placeholders.resolver()).build();
+        MM = MiniMessage.builder().tags(TagResolver.builder().resolvers(placeholders.resolver(), TagResolver.standard()).build()).build();
         this.proxy = proxy;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
@@ -103,14 +108,35 @@ public final class VeloReconnectPlugin {
         }
 
         RegisteredServer previousServer = event.getServer();
-        if (!config.monitoredServers.contains(previousServer.getServerInfo().getName())) {
-            return false;
-        }
-
         Player player = event.getPlayer();
         reconnectingPlayers.add(player.getUniqueId());
-        limbo.spawnPlayer(player, new ReconnectSession(config, previousServer));
+        limbo.spawnPlayer(player, new ReconnectSession(this, config, previousServer));
         return true;
+    }
+
+    boolean tryAcquireReconnectSlot() {
+        if (!config.queue.enabled || proxy.getPlayerCount() < config.queue.onlineThreshold) {
+            return true;
+        }
+
+        long now = System.currentTimeMillis();
+        long intervalMillis = Math.max(1L, config.queue.batchIntervalMillis);
+        long batchStartedAt = reconnectBatchStartedAtMillis.get();
+        if (now - batchStartedAt >= intervalMillis
+            && reconnectBatchStartedAtMillis.compareAndSet(batchStartedAt, now)) {
+            reconnectBatchUsed.set(0);
+        }
+
+        int batchSize = Math.max(1, config.queue.batchSize);
+        while (true) {
+            int used = reconnectBatchUsed.get();
+            if (used >= batchSize) {
+                return false;
+            }
+            if (reconnectBatchUsed.compareAndSet(used, used + 1)) {
+                return true;
+            }
+        }
     }
 
     @Subscribe
@@ -136,8 +162,8 @@ public final class VeloReconnectPlugin {
             .setName("VeloReconnect")
             .setReadTimeout(config.limbo.readTimeoutSeconds)
             .setGameMode(gameMode())
-            .setShouldRejoin(true)
-            .setShouldRespawn(true)
+            .setShouldRejoin(false)
+            .setShouldRespawn(false)
             .setReducedDebugInfo(true)
             .setViewDistance(config.limbo.viewDistance)
             .setSimulationDistance(config.limbo.simulationDistance);
