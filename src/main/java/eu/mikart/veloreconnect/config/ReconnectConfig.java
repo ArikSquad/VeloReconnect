@@ -5,6 +5,9 @@ import de.exlll.configlib.Configuration;
 
 @Configuration
 public final class ReconnectConfig {
+    @Comment("Backend kick reason regex for reconnect limbo. Uses find(); leave empty to disable.")
+    public String reconnectKickMessageRegex = "(?i)Server is rebooting";
+
     @Comment("Maximum time to keep trying before the player is disconnected, in milliseconds.")
     public long maxTimeoutMillis = 60000L;
 

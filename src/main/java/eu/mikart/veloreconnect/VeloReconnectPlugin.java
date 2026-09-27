@@ -24,6 +24,7 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
 import org.slf4j.Logger;
 
@@ -37,6 +38,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 @Plugin(
     id = "veloreconnect",
@@ -49,12 +52,15 @@ import java.util.concurrent.atomic.AtomicLong;
     }
 )
 public final class VeloReconnectPlugin {
+    private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
+
     private final ProxyServer proxy;
     private final Logger logger;
     private final Path dataDirectory;
     public static final Set<UUID> reconnectingPlayers = ConcurrentHashMap.newKeySet();
 
     private ReconnectConfig config;
+    private Pattern reconnectKickMessagePattern;
     public static MiniPlaceholderBridge placeholders;
     private Limbo limbo;
     private final AtomicLong reconnectBatchStartedAtMillis = new AtomicLong(System.currentTimeMillis());
@@ -103,7 +109,15 @@ public final class VeloReconnectPlugin {
     }
 
     private boolean handleKick(KickedFromServerEvent event) {
-        if (event.kickedDuringServerConnect()) {
+        Pattern kickMessagePattern = reconnectKickMessagePattern;
+        if (event.kickedDuringServerConnect() || kickMessagePattern == null) {
+            return false;
+        }
+
+        String kickMessage = event.getServerKickReason()
+            .map(PLAIN_TEXT::serialize)
+            .orElse("");
+        if (!kickMessagePattern.matcher(kickMessage).find()) {
             return false;
         }
 
@@ -160,7 +174,7 @@ public final class VeloReconnectPlugin {
         );
         return factory.createLimbo(world)
             .setName("VeloReconnect")
-            .setReadTimeout(config.limbo.readTimeoutSeconds)
+            .setReadTimeout(readTimeoutMillis())
             .setGameMode(gameMode())
             .setShouldRejoin(false)
             .setShouldRespawn(false)
@@ -173,13 +187,31 @@ public final class VeloReconnectPlugin {
         return GameMode.valueOf(config.visual.gamemode.toUpperCase(Locale.ROOT));
     }
 
+    private int readTimeoutMillis() {
+        long timeoutMillis = Math.max(1L, config.limbo.readTimeoutSeconds) * 1000L;
+        return (int) Math.min(Integer.MAX_VALUE, timeoutMillis);
+    }
+
     private void loadConfig() {
         try {
             Files.createDirectories(dataDirectory);
             Path configPath = dataDirectory.resolve("config.yml");
             this.config = YamlConfigurations.update(configPath, ReconnectConfig.class);
+            this.reconnectKickMessagePattern = compileReconnectKickMessagePattern(config.reconnectKickMessageRegex);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to load VeloReconnect config", exception);
+        }
+    }
+
+    private Pattern compileReconnectKickMessagePattern(String regex) {
+        if (regex == null || regex.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Pattern.compile(regex);
+        } catch (PatternSyntaxException exception) {
+            throw new IllegalStateException("Invalid reconnectKickMessageRegex: " + regex, exception);
         }
     }
 }

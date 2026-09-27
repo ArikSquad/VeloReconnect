@@ -33,7 +33,7 @@ tasks {
         velocityVersion("3.5.0-SNAPSHOT")
 
         downloadPlugins {
-            modrinth("limboapi", "839773c")
+            modrinth("limboapi", "bfef579")
         }
     }
 
